@@ -1,24 +1,62 @@
-import { ArrowRight, Clock, CreditCard, Filter } from "lucide-react"
+import { ArrowRight, Clock, CreditCard, Filter, ExternalLink, Repeat, ShoppingCart, TrendingDown } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { DepositFundsModal } from "./BuyCryptoModal"
+import { BuyCryptoModal } from "./BuyCryptoModal"
+import { useWalletStore } from "@/lib/store/wallet-store"
 
 interface QuickActionsProps {
   type: 'fiat' | 'crypto';
+  activeNetwork?: {
+    id: string;
+    name: string;
+    chainId: string;
+    icon: string;
+    color: string;
+  };
 }
 
-export function QuickActions({ type }: QuickActionsProps) {
+export function QuickActions({ type, activeNetwork }: QuickActionsProps) {
   const [isBuyModalOpen, setIsBuyModalOpen] = useState(false)
+  const { deposit } = useWalletStore()
 
-  const handleBuyCrypto = async (walletAddress: string) => {
+  const handleBuyCrypto = async (transactionHash: string) => {
     try {
-      // Here you would implement the actual wallet transfer logic
-      console.log('Processing transfer to wallet:', walletAddress)
-      // Add your API call or blockchain transaction here
+      // Use the wallet store to record the deposit
+      // Use the appropriate crypto asset based on the active network
+      const networkAsset = activeNetwork?.id === 'ripple' ? 'XRP' as const :
+                        activeNetwork?.id === 'polygon' ? 'MATIC' as const :
+                        activeNetwork?.id === 'xdc' ? 'XDC' as const : 'USDT' as const;
+      
+      // Create a deposit transaction using the wallet store
+      await deposit(
+        1.0, // Example amount
+        networkAsset,
+        undefined, // bankId
+        "0x53ae02C14aa48cd3131F81Dc9fE0C5b923b64Ce", // Example address
+        activeNetwork?.chainId // chainId
+      );
+      
+      console.log('Processed crypto purchase on', activeNetwork?.name, 'network, tx:', transactionHash);
     } catch (error) {
-      console.error('Error processing crypto purchase:', error)
-      throw error
+      console.error('Error processing crypto purchase:', error);
+      throw error;
+    }
+  }
+
+  // Get explorer URL based on active network
+  const getExplorerUrl = () => {
+    if (!activeNetwork) return "https://xrpscan.com";
+    
+    switch(activeNetwork.id) {
+      case 'ripple':
+        return "https://xrpscan.com";
+      case 'polygon':
+        return "https://polygonscan.com";
+      case 'xdc':
+        return "https://explorer.xinfin.network";
+      default:
+        return "https://xrpscan.com";
     }
   }
 
@@ -36,11 +74,8 @@ export function QuickActions({ type }: QuickActionsProps) {
                   variant="ghost"
                   className="justify-start px-4 py-3 bg-white hover:bg-gray-50 rounded-lg border border-gray-200"
                 >
-                  <div className="w-5 h-5 mr-3 flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M17.5 10C17.5 14.1421 14.1421 17.5 10 17.5C5.85786 17.5 2.5 14.1421 2.5 10C2.5 5.85786 5.85786 2.5 10 2.5" stroke="#12B76A" strokeWidth="1.5" strokeLinecap="round"/>
-                      <path d="M15 5L10 10" stroke="#12B76A" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
+                  <div className="w-5 h-5 mr-3 flex items-center justify-center text-emerald-500">
+                    <Repeat className="h-4 w-4" />
                   </div>
                   <span className="truncate">Swap Crypto</span>
                 </Button>
@@ -49,32 +84,27 @@ export function QuickActions({ type }: QuickActionsProps) {
                   className="justify-start px-4 py-3 bg-white hover:bg-gray-50 rounded-lg border border-gray-200"
                   onClick={() => setIsBuyModalOpen(true)}
                 >
-                  <div className="w-5 h-5 mr-3 flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M2.5 5.83333L10 2.5L17.5 5.83333M2.5 5.83333L10 9.16667M2.5 5.83333V14.1667L10 17.5M17.5 5.83333L10 9.16667M17.5 5.83333V14.1667L10 17.5M10 9.16667V17.5" stroke="#2E90FA" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
+                  <div className="w-5 h-5 mr-3 flex items-center justify-center text-blue-500">
+                    <ShoppingCart className="h-4 w-4" />
                   </div>
-                  <span className="truncate">Buy Crypto</span>
+                  <span className="truncate">Buy {activeNetwork ? activeNetwork.id === 'ripple' ? 'XRP' : activeNetwork.id === 'polygon' ? 'MATIC' : 'XDC' : 'Crypto'}</span>
                 </Button>
                 <Button
                   variant="ghost"
                   className="justify-start px-4 py-3 bg-white hover:bg-gray-50 rounded-lg border border-gray-200"
                 >
-                  <div className="w-5 h-5 mr-3 flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M10 17.5L10 2.5M10 2.5L5 7.5M10 2.5L15 7.5" stroke="#F04438" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
+                  <div className="w-5 h-5 mr-3 flex items-center justify-center text-red-500">
+                    <TrendingDown className="h-4 w-4" />
                   </div>
-                  <span className="truncate">Sell Crypto</span>
+                  <span className="truncate">Sell {activeNetwork ? activeNetwork.id === 'ripple' ? 'XRP' : activeNetwork.id === 'polygon' ? 'MATIC' : 'XDC' : 'Crypto'}</span>
                 </Button>
                 <Button
                   variant="ghost"
                   className="justify-start px-4 py-3 bg-white hover:bg-gray-50 rounded-lg border border-gray-200"
+                  onClick={() => window.open(getExplorerUrl(), '_blank')}
                 >
-                  <div className="w-5 h-5 mr-3 flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M15 10.8333V15.8333C15 16.2754 14.6421 16.6333 14.2 16.6333H4.8C4.35786 16.6333 4 16.2754 4 15.8333V6.43333C4 5.99119 4.35786 5.63333 4.8 5.63333H9.8M11.6667 3.36667H16.6667M16.6667 3.36667V8.36667M16.6667 3.36667L8.33333 11.7" stroke="#667085" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
+                  <div className="w-5 h-5 mr-3 flex items-center justify-center text-gray-500">
+                    <ExternalLink className="h-4 w-4" />
                   </div>
                   <span className="truncate">View on Explorer</span>
                 </Button>
@@ -123,15 +153,15 @@ export function QuickActions({ type }: QuickActionsProps) {
         </CardContent>
       </Card>
 
-      <DepositFundsModal
+      <BuyCryptoModal
         isOpen={isBuyModalOpen}
         onClose={() => setIsBuyModalOpen(false)}
-        depositAddress="0x53ae02C14aa48cd3131F81Dc9fE0C5b923b64Ce"
-        onTransactionComplete={async (result) => {
+        defaultCrypto={activeNetwork?.id === 'ripple' ? 'XRP' : activeNetwork?.id === 'polygon' ? 'MATIC' : 'XDC'}
+        onTransactionComplete={async (result: { transactionHash: string; status: string; receipt: any }) => {
           console.log('Transaction completed:', result);
           await handleBuyCrypto(result.transactionHash);
         }}
       />
     </>
   )
-} 
+}

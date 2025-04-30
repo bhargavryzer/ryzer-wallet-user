@@ -1,9 +1,9 @@
 export interface Transaction {
   date: string;
-  type: 'deposit' | 'withdrawal';
+  type: 'deposit' | 'withdrawal' | 'swap';
   asset: string;
   amount: string;
-  status: 'completed' | 'processing';
+  status: 'completed' | 'processing' | 'pending' | 'failed';
   details?: string;
 }
 

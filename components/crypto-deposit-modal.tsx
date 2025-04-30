@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -10,12 +10,36 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useWalletStore } from "@/lib/store/wallet-store"
 import type { CryptoAsset } from "@/lib/store/wallet-store"
 
-export function CryptoDepositModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+interface CryptoDepositModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  activeNetwork?: {
+    id: string;
+    name: string;
+    chainId: string;
+    icon: string;
+    color: string;
+  };
+}
+
+export function CryptoDepositModal({ isOpen, onClose, activeNetwork }: CryptoDepositModalProps) {
+  // Set default currency based on active network
+  const getDefaultCurrency = (): CryptoAsset => {
+    if (!activeNetwork) return "USDT";
+    
+    switch(activeNetwork.id) {
+      case 'ripple': return "XRP";
+      case 'polygon': return "MATIC";
+      case 'xdc': return "XDC";
+      default: return "USDT";
+    }
+  };
+  
   const [formData, setFormData] = useState({
     amount: "",
     address: "",
-    currency: "ETH" as CryptoAsset,
-    chainId: "2"
+    currency: getDefaultCurrency(),
+    chainId: activeNetwork?.chainId || "1"
   })
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -41,7 +65,7 @@ export function CryptoDepositModal({ isOpen, onClose }: { isOpen: boolean; onClo
       const transaction = await deposit(parseFloat(amount), currency, undefined, address, chainId)
       
       if (transaction.status === "pending" || transaction.status === "completed") {
-        setFormData({ amount: "", address: "", currency: "ETH", chainId: "2" })
+        setFormData({ amount: "", address: "", currency: getDefaultCurrency(), chainId: activeNetwork?.chainId || "1" })
         onClose()
       } else {
         setError("Failed to process deposit")
@@ -57,15 +81,15 @@ export function CryptoDepositModal({ isOpen, onClose }: { isOpen: boolean; onClo
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md p-4">
         {/* Header with integrated close button */}
-        <div className="flex items-center justify-between mb-2">
+        <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div className="flex items-center gap-1">
             <span className="text-green-500 text-lg">↓</span>
-            <h3 className="font-semibold text-lg">Deposit Crypto</h3>
+            <DialogTitle>Deposit Crypto</DialogTitle>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose} className="h-6 w-6 p-0">
             <X className="h-4 w-4" />
           </Button>
-        </div>
+        </DialogHeader>
 
         {/* Compact Form */}
         <div className="space-y-2">

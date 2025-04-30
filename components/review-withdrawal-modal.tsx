@@ -13,9 +13,10 @@ interface ReviewWithdrawalModalProps {
   amount: number
   bankName: string
   note?: string
+  bankId?: string
 }
 
-export function ReviewWithdrawalModal({ isOpen, onClose, onBack, amount, bankName, note }: ReviewWithdrawalModalProps) {
+export function ReviewWithdrawalModal({ isOpen, onClose, onBack, amount, bankName, note, bankId }: ReviewWithdrawalModalProps) {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false)
 
   const handleConfirm = () => {

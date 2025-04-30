@@ -15,9 +15,16 @@ import { useWalletStore } from "@/lib/store/wallet-store"
 interface WithdrawModalProps {
   isOpen: boolean
   onClose: () => void
+  activeNetwork?: {
+    id: string;
+    name: string;
+    chainId: string;
+    icon: string;
+    color: string;
+  };
 }
 
-export function WithdrawModal({ isOpen, onClose }: WithdrawModalProps) {
+export function WithdrawModal({ isOpen, onClose, activeNetwork }: WithdrawModalProps) {
   const { banks, fiatBalance } = useWalletStore()
   const availableBalance = fiatBalance.USD
 

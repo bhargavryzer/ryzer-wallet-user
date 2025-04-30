@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -11,6 +11,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ethers } from 'ethers'
+import { Check, Copy, AlertCircle, ArrowRight, X } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { useWalletStore, type CryptoAsset } from "@/lib/store/wallet-store"
+import { SUPPORTED_CRYPTOCURRENCIES } from "@/lib/services/crypto-service"
 
 // Extend Window interface to include ethereum property
 declare global {
@@ -157,38 +162,122 @@ async function sendERC20Transaction(params: TransactionParams): Promise<Transact
   }
 }
 
-interface DepositFundsModalProps {
+interface BuyCryptoModalProps {
   isOpen: boolean;
   onClose: () => void;
-  depositAddress: string;
-  onTransactionComplete: (result: TransactionResult) => Promise<void>;
-  chainId?: number;
+  defaultCrypto?: CryptoAsset;
+  onTransactionComplete?: (result: TransactionResult) => Promise<void>;
 }
 
-export function DepositFundsModal({ isOpen, onClose, depositAddress, onTransactionComplete, chainId }: DepositFundsModalProps) {
-  const [depositType, setDepositType] = useState<'ETH' | 'ERC20'>('ETH');
-  const [tokenAddress, setTokenAddress] = useState("");
-  const [amount, setAmount] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+export function BuyCryptoModal({ isOpen, onClose, defaultCrypto = 'XDC', onTransactionComplete }: BuyCryptoModalProps) {
+  const { activeNetwork, walletAddresses } = useWalletStore();
+  const [selectedCrypto, setSelectedCrypto] = useState<CryptoAsset>(defaultCrypto as CryptoAsset);
+  const [amount, setAmount] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<boolean>(false);
+  const [note, setNote] = useState<string>('');
+  const [isReviewMode, setIsReviewMode] = useState<boolean>(false);
+  const [estimatedFees, setEstimatedFees] = useState<string>('0.001');
+  const [exchangeRate, setExchangeRate] = useState<number>(0.35); // Mock exchange rate for XDC
+  
+  // Get deposit address for the current network
+  const depositAddress = walletAddresses[activeNetwork] || '';
+  
+  // Define which cryptocurrencies are supported on each network
+  const networkCryptoMap = {
+    'ripple': ['XRP', 'USDT', 'XDC'],
+    'polygon': ['MATIC', 'USDT', 'XDC'],
+    'xdc': ['XDC', 'USDT', 'XRP']
+  };
+  
+  // Network display names mapping
+  const networkDisplayNames = {
+    'ripple': 'Ripple',
+    'polygon': 'Polygon',
+    'xdc': 'XDC Network'
+  };
+  
+  // Get supported cryptocurrencies for the current network
+  const networkCryptos = Object.entries(SUPPORTED_CRYPTOCURRENCIES)
+    .filter(([_, crypto]) => networkCryptoMap[activeNetwork]?.includes(crypto.symbol))
+    .map(([_, crypto]) => crypto);
+  
+  // Update exchange rate when selected crypto changes
+  useEffect(() => {
+    // In a real implementation, this would fetch the current exchange rate from an API
+    const rates: Record<string, number> = {
+      'XDC': 0.35,
+      'XRP': 0.52,
+      'MATIC': 0.58,
+      'USDT': 1.0
+    };
+    setExchangeRate(rates[selectedCrypto] || 0.5);
+  }, [selectedCrypto]);
+  
+  // Get crypto info
+  const getCryptoInfo = (symbol: CryptoAsset) => {
+    // Convert CryptoAsset to lowercase to match SUPPORTED_CRYPTOCURRENCIES keys
+    const key = symbol.toLowerCase() as keyof typeof SUPPORTED_CRYPTOCURRENCIES;
+    return SUPPORTED_CRYPTOCURRENCIES[key] || {
+      name: symbol,
+      symbol,
+      color: 'bg-gray-500'
+    };
+  };
+  
+  const cryptoInfo = getCryptoInfo(selectedCrypto);
+  
+  // Calculate USD value based on amount and exchange rate
+  const calculateUsdValue = (cryptoAmount: string): string => {
+    if (!cryptoAmount) return '0.00';
+    const value = parseFloat(cryptoAmount) * exchangeRate;
+    return value.toFixed(2);
+  };
 
+  // Handle form validation and proceed to review
+  const handleContinue = () => {
+    // Validate form
+    if (!amount || parseFloat(amount) <= 0) {
+      setError('Please enter a valid amount');
+      return;
+    }
+
+    // If validation passes, proceed to review
+    setError(null);
+    setIsReviewMode(true);
+  };
+
+  // Handle final submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (depositType === 'ETH' && !amount.trim()) return;
-    if (depositType === 'ERC20' && (!tokenAddress.trim() || !amount.trim())) return;
-
+    if (!amount.trim()) return;
+    
     setIsLoading(true);
     setError(null);
+    
     try {
-      let result: TransactionResult;
-      if (depositType === 'ETH') {
-        result = await sendETHTransaction({ toAddress: depositAddress, amount, chainId });
-      } else {
-        result = await sendERC20Transaction({ tokenAddress, toAddress: depositAddress, amount, chainId });
+      // Simulate transaction processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // In a real implementation, this would call an API to process the payment
+      const mockResult: TransactionResult = {
+        transactionHash: '0x' + Math.random().toString(16).substring(2, 42),
+        status: 'success',
+        receipt: {
+          blockNumber: 12345678,
+          confirmations: 1,
+          status: 1
+        }
+      };
+      
+      if (onTransactionComplete) {
+        await onTransactionComplete(mockResult);
       }
-      await onTransactionComplete(result);
-      setTokenAddress("");
-      setAmount("");
+      
+      setAmount('');
+      setNote('');
+      setIsReviewMode(false);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Transaction failed. Please try again.');
@@ -197,89 +286,225 @@ export function DepositFundsModal({ isOpen, onClose, depositAddress, onTransacti
     }
   };
 
+  // Format currency for display
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px] bg-white rounded-lg shadow-lg p-6">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold text-gray-800">Deposit Funds</DialogTitle>
-          <DialogDescription className="text-sm text-gray-500 mt-1">
-            Choose the type of deposit and enter the required details.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-6">
-          <div className="flex space-x-2 border-b">
-            <button
-              type="button"
-              className={`px-4 py-2 font-medium ${depositType === 'ETH' ? 'border-b-2 border-purple-500 text-purple-600' : 'text-gray-500'}`}
-              onClick={() => setDepositType('ETH')}
-            >
-              ETH
-            </button>
-            <button
-              type="button"
-              className={`px-4 py-2 font-medium ${depositType === 'ERC20' ? 'border-b-2 border-purple-500 text-purple-600' : 'text-gray-500'}`}
-              onClick={() => setDepositType('ERC20')}
-            >
-              ERC20 Token
-            </button>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div className="flex items-center gap-2">
+            <div className={`h-6 w-6 rounded-full ${cryptoInfo.color} flex items-center justify-center text-white`}>
+              {cryptoInfo.symbol.substring(0, 1)}
+            </div>
+            <DialogTitle>Buy {cryptoInfo.name}</DialogTitle>
           </div>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {depositType === 'ERC20' && (
-              <div className="space-y-2">
-                <Label htmlFor="tokenAddress" className="text-sm font-medium text-gray-700">
-                  Token Contract Address
-                </Label>
+          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+            <X className="h-4 w-4" />
+          </Button>
+        </DialogHeader>
+        <DialogDescription>
+          Purchase {cryptoInfo.name} ({cryptoInfo.symbol}) quickly and securely.
+        </DialogDescription>
+
+        {!isReviewMode ? (
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Select Cryptocurrency</Label>
+              <Select
+                value={selectedCrypto}
+                onValueChange={(value) => setSelectedCrypto(value as CryptoAsset)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select Crypto" />
+                </SelectTrigger>
+                <SelectContent>
+                  {networkCryptos.map((crypto) => (
+                    <SelectItem key={crypto.symbol} value={crypto.symbol}>
+                      <div className="flex items-center gap-2">
+                        <div className={`h-3 w-3 rounded-full ${crypto.color}`}></div>
+                        <span>{crypto.name} ({crypto.symbol})</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="amount">Amount</Label>
+                <span className="text-sm text-gray-500">1 {selectedCrypto} ≈ ${exchangeRate}</span>
+              </div>
+              <div className="relative">
                 <Input
-                  id="tokenAddress"
-                  placeholder="0x..."
-                  value={tokenAddress}
-                  onChange={(e) => setTokenAddress(e.target.value)}
-                  className="w-full border-gray-300 rounded-md focus:ring-1 focus:ring-purple-500"
-                  required={depositType === 'ERC20'}
+                  id="amount"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="pr-16"
+                  placeholder="0.00"
                 />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                  {selectedCrypto}
+                </span>
+              </div>
+              <p className="text-sm text-gray-500 text-right">
+                ≈ ${calculateUsdValue(amount)}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label className="text-sm font-medium">Deposit Address</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600 hover:bg-transparent"
+                        onClick={() => {
+                          navigator.clipboard.writeText(depositAddress);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        }}
+                      >
+                        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{copied ? 'Copied!' : 'Copy address'}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <div className="bg-gray-100 p-3 rounded-md">
+                <p className="text-sm font-mono break-all">{depositAddress}</p>
+              </div>
+              <div className="flex items-center gap-1 text-amber-600 text-xs">
+                <AlertCircle className="h-3 w-3" />
+                <span>Only send {selectedCrypto} to this address on the {networkDisplayNames[activeNetwork]} network</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="note">Note (Optional)</Label>
+              <Input
+                id="note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Add a note for this transaction"
+              />
+            </div>
+
+            {error && (
+              <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                <div className="flex items-center">
+                  <AlertCircle className="mr-2 h-4 w-4" />
+                  <span>{error}</span>
+                </div>
               </div>
             )}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-700">Deposit Address</Label>
-              <Input
-                value={depositAddress}
-                disabled
-                className="w-full bg-gray-100 border-gray-300 rounded-md"
-              />
+
+            <div className="bg-gray-50 p-3 rounded-md">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">Network Fee</span>
+                <span className="font-medium">{estimatedFees} {selectedCrypto}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm mt-2">
+                <span className="text-gray-600">Estimated Total</span>
+                <span className="font-medium">
+                  {amount ? (parseFloat(amount) + parseFloat(estimatedFees)).toFixed(6) : '0.00'} {selectedCrypto}
+                </span>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="amount" className="text-sm font-medium text-gray-700">
-                {depositType === 'ETH' ? 'Amount (ETH)' : 'Token Amount'}
-              </Label>
-              <Input
-                id="amount"
-                type="text"
-                placeholder={depositType === 'ETH' ? '0.1' : '100'}
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-full border-gray-300 rounded-md focus:ring-1 focus:ring-purple-500"
-                required
-              />
+          </div>
+        ) : (
+          <div className="space-y-4 py-4">
+            <div className="bg-blue-50 border border-blue-100 rounded-md p-4">
+              <h3 className="font-medium text-blue-800 mb-2">Transaction Summary</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Amount:</span>
+                  <span className="font-medium">{amount} {selectedCrypto}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Value:</span>
+                  <span className="font-medium">${calculateUsdValue(amount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Network Fee:</span>
+                  <span className="font-medium">{estimatedFees} {selectedCrypto}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total:</span>
+                  <span className="font-medium">{(parseFloat(amount) + parseFloat(estimatedFees)).toFixed(6)} {selectedCrypto}</span>
+                </div>
+                {note && (
+                  <div className="pt-2 border-t border-blue-100 mt-2">
+                    <span className="text-gray-600">Note:</span>
+                    <p className="mt-1">{note}</p>
+                  </div>
+                )}
+              </div>
             </div>
-            {error && <div className="text-red-500 text-sm">{error}</div>}
-            <DialogFooter className="flex justify-between mt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-                className="w-1/2 mr-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700"
+
+            {error && (
+              <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                <div className="flex items-center">
+                  <AlertCircle className="mr-2 h-4 w-4" />
+                  <span>{error}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3">
+          {isReviewMode ? (
+            <>
+              <Button 
+                variant="outline" 
+                onClick={() => setIsReviewMode(false)}
               >
+                Back
+              </Button>
+              <Button 
+                onClick={handleSubmit} 
+                className="bg-black text-white hover:bg-gray-800"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    Processing...
+                  </>
+                ) : (
+                  'Confirm Purchase'
+                )}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                className="w-1/2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-                disabled={isLoading || (depositType === 'ETH' && !amount.trim()) || (depositType === 'ERC20' && (!tokenAddress.trim() || !amount.trim()))}
+              <Button 
+                onClick={handleContinue} 
+                className="bg-black text-white hover:bg-gray-800"
+                disabled={!amount.trim() || parseFloat(amount) <= 0}
               >
-                {isLoading ? "Processing..." : "Deposit Now"}
+                Continue
               </Button>
-            </DialogFooter>
-          </form>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
