@@ -54,7 +54,7 @@ export function QuickActions({ type }: QuickActionsProps) {
                       <path d="M2.5 5.83333L10 2.5L17.5 5.83333M2.5 5.83333L10 9.16667M2.5 5.83333V14.1667L10 17.5M17.5 5.83333L10 9.16667M17.5 5.83333V14.1667L10 17.5M10 9.16667V17.5" stroke="#2E90FA" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </div>
-                  <span className="truncate">Deposit</span>
+                  <span className="truncate">Buy Crypto</span>
                 </Button>
                 <Button
                   variant="ghost"
